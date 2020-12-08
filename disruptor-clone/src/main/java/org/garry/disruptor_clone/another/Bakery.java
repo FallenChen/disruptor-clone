@@ -45,6 +45,7 @@ public class Bakery extends Thread{
     }
 
     // Simple test of a global counter
+    //
 
     @Override
     public void run() {
@@ -136,7 +137,8 @@ public class Bakery extends Thread{
      * Method that leaves the lock
      */
     private void unlock(int id){
-        // todo at the start of execution, this value of ticket is all set to 0 why???
+        // todo
+        // at the start of execution, this value of ticket is all set to 0 why???
         ticket[id] = 0;
         System.out.println("Thread " + id + " unlock");
     }
