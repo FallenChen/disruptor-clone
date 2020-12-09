@@ -137,8 +137,8 @@ public class Bakery extends Thread{
      * Method that leaves the lock
      */
     private void unlock(int id){
-        // todo
         // at the start of execution, this value of ticket is all set to 0 why???
+        // like in a bank,when you finish your business,you will drop your token
         ticket[id] = 0;
         System.out.println("Thread " + id + " unlock");
     }
