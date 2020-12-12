@@ -19,9 +19,16 @@ public final class RingBuffer<T extends Entry> {
 
     private final Object[] entries;
 
-    public RingBuffer(final int size) {
+    public RingBuffer(final EntryFactory<T> entryFactory, final int size) {
         int sizeAsPowerOfTwp = ceilingNextPowerOfTwo(size);
         entries = new Object[sizeAsPowerOfTwp];
+        fill(entryFactory);
+    }
+
+    private void fill(EntryFactory<T> entryFactory) {
+        for (int i = 0; i < entries.length; i++) {
+            entries[i] = entryFactory.create();
+        }
     }
 
 

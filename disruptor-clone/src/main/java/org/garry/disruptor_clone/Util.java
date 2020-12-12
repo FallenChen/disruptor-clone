@@ -18,6 +18,7 @@ public class Util {
         return 1 << (32 - Integer.numberOfLeadingZeros(x - 1));
     }
 
+    // test
     public static void main(String[] args) {
         System.out.println(ceilingNextPowerOfTwo(3));
     }
