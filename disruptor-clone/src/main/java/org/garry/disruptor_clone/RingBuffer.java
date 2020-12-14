@@ -31,5 +31,14 @@ public final class RingBuffer<T extends Entry> {
         }
     }
 
+    /**
+     * The capacity of the RingBuffer to hold entries
+     * @return the size of RingBuffer
+     */
+    public int getCapacity(){
+        return entries.length;
+    }
+
+
 
 }
