@@ -41,4 +41,40 @@ public final class RingBuffer<T extends Entry> {
 
 
 
+    /**
+     * {@link ProducerBarrier} that tracks multiple {@link Consumer}s when trying to claim
+     * a {@link Entry} in the {@link RingBuffer}.
+     */
+
+    final class ConsumerTrackingProducerBarrier implements ProducerBarrier<T> {
+
+        private final Consumer[] consumers;
+
+        public ConsumerTrackingProducerBarrier(final Consumer... consumers)
+        {
+            if (0 == consumers.length)
+            {
+                throw new IllegalArgumentException("There must be at least one Consumer to track for preventing ring wrap");
+            }
+
+            this.consumers = consumers;
+        }
+
+        @Override
+        public T nextEntry() {
+            return null;
+        }
+
+        @Override
+        public void commit(T entry) {
+
+        }
+
+        @Override
+        public long getCursor() {
+            return cursor;
+        }
+    }
+
+
 }
