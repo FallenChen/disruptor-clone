@@ -21,5 +21,6 @@ public class Util {
     // test
     public static void main(String[] args) {
         System.out.println(ceilingNextPowerOfTwo(3));
+        System.out.println(8&2);
     }
 }

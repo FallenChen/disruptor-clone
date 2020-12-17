@@ -19,10 +19,19 @@ public final class RingBuffer<T extends Entry> {
 
     private final Object[] entries;
 
-    public RingBuffer(final EntryFactory<T> entryFactory, final int size) {
+    private final ClaimStrategy claimStrategy;
+
+    public RingBuffer(final EntryFactory<T> entryFactory,final int size,
+                      ClaimStrategy.Option claimStrategyOption) {
         int sizeAsPowerOfTwp = ceilingNextPowerOfTwo(size);
         entries = new Object[sizeAsPowerOfTwp];
+        claimStrategy = claimStrategyOption.newInstance();
         fill(entryFactory);
+    }
+
+    public RingBuffer(final EntryFactory<T> entryFactory, final int size) {
+        this(entryFactory,size,
+                ClaimStrategy.Option.SINGLE_THREADED);
     }
 
     private void fill(EntryFactory<T> entryFactory) {
@@ -67,6 +76,10 @@ public final class RingBuffer<T extends Entry> {
 
         @Override
         public void commit(T entry) {
+            long sequence = entry.getSequence();
+            claimStrategy.waitForCursor(sequence -1L, RingBuffer.this);
+            cursor = sequence;
+            // signal all
 
         }
 
