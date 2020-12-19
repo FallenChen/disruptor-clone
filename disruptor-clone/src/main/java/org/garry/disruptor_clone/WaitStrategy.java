@@ -5,5 +5,13 @@ package org.garry.disruptor_clone;
  */
 public interface WaitStrategy {
 
-    long waitFor(Consumer[] consumers, RingBuffer ringBuffer);
+    /**
+     * Wait for the given sequence to be available for consumption in a {@link RingBuffer}
+     * @param consumers
+     * @param ringBuffer
+     * @param barrier
+     * @param sequence
+     * @return
+     */
+    long waitFor(Consumer[] consumers, RingBuffer ringBuffer,ConsumerBarrier barrier, long sequence);
 }
