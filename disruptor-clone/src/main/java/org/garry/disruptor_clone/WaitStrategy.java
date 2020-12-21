@@ -18,7 +18,7 @@ public interface WaitStrategy {
      * @param sequence
      * @return
      */
-    long waitFor(Consumer[] consumers, RingBuffer ringBuffer,ConsumerBarrier barrier, long sequence);
+    long waitFor(Consumer[] consumers, RingBuffer ringBuffer,ConsumerBarrier barrier, long sequence) throws InterruptedException;
 
 
     long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence, long timeout, TimeUnit units);
@@ -38,7 +38,23 @@ public interface WaitStrategy {
         private final Condition consumerNotifyCondition = lock.newCondition();
 
         @Override
-        public long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence) {
+        public long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence) throws InterruptedException {
+            long availableSequence;
+            if ((availableSequence = ringBuffer.getCursor()) < sequence)
+            {
+                lock.lock();
+                try {
+
+                    while ((availableSequence = ringBuffer.getCursor()) < sequence)
+                    {
+                        consumerNotifyCondition.await();
+                    }
+                }
+                finally {
+                    lock.unlock();
+                }
+            }
+
             return 0;
         }
 

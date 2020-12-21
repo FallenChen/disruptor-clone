@@ -48,6 +48,14 @@ public final class RingBuffer<T extends Entry> {
         return entries.length;
     }
 
+    /**
+     * Get the current sequence that producers have committed to the RingBuffer
+     * @return the current committed sequence
+     */
+    public long getCursor(){
+        return cursor;
+    }
+
 
 
     /**
