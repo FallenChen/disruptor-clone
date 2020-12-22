@@ -5,6 +5,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static org.garry.disruptor_clone.Util.getMinimumSequence;
+
 /**
  * Strategy employed for making {@link Consumer}s wait on a {@link RingBuffer}
  */
@@ -55,7 +57,15 @@ public interface WaitStrategy {
                 }
             }
 
-            return 0;
+            if (0 != consumers.length)
+            {
+                while ((availableSequence = getMinimumSequence(consumers)) < sequence)
+                {
+
+                }
+            }
+
+            return availableSequence;
         }
 
         @Override

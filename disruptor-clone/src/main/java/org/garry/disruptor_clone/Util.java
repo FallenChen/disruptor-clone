@@ -18,6 +18,21 @@ public class Util {
         return 1 << (32 - Integer.numberOfLeadingZeros(x - 1));
     }
 
+    /**
+     * Get the minimum sequence from an array of {@link Consumer}s
+     * @param consumers to compare
+     * @return the minimum sequence found or Long.MAX_VALUE if the array is empty
+     */
+    public static long getMinimumSequence(final Consumer[] consumers)
+    {
+        long minimum = Long.MAX_VALUE;
+        for (Consumer consumer : consumers) {
+            long sequence = consumer.getCursor();
+            minimum = minimum < sequence ? minimum : sequence;
+        }
+        return minimum;
+    }
+
     // test
     public static void main(String[] args) {
         System.out.println(ceilingNextPowerOfTwo(3));
