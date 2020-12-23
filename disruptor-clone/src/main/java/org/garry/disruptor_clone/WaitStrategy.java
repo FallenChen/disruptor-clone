@@ -23,7 +23,7 @@ public interface WaitStrategy {
     long waitFor(Consumer[] consumers, RingBuffer ringBuffer,ConsumerBarrier barrier, long sequence) throws InterruptedException;
 
 
-    long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence, long timeout, TimeUnit units);
+    long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence, long timeout, TimeUnit units) throws InterruptedException;
 
 
     void signalAll();
@@ -69,13 +69,46 @@ public interface WaitStrategy {
         }
 
         @Override
-        public long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence, long timeout, TimeUnit units) {
-            return 0;
+        public long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence, long timeout, TimeUnit units) throws InterruptedException {
+            long availableSequence;
+            if ((availableSequence = ringBuffer.getCursor()) < sequence)
+            {
+                lock.lock();
+                try {
+
+                    while ((availableSequence = ringBuffer.getCursor()) < sequence)
+                    {
+                        if(!consumerNotifyCondition.await(timeout, units))
+                        {
+                            break;
+                        }
+                    }
+                }
+                finally {
+                    lock.unlock();
+                }
+            }
+
+            if (0 != consumers.length)
+            {
+                while ((availableSequence = getMinimumSequence(consumers)) < sequence)
+                {
+
+                }
+            }
+
+            return availableSequence;
         }
 
         @Override
         public void signalAll() {
-
+            lock.lock();
+            try {
+                consumerNotifyCondition.signalAll();
+            }
+            finally {
+                lock.unlock();
+            }
         }
     }
 
