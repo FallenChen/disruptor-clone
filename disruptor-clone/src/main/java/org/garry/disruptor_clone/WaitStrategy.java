@@ -113,4 +113,68 @@ public interface WaitStrategy {
     }
 
 
+    /**
+     * Busy Spin strategy that uses a busy spin loop for {@link Consumer}s waiting on a barrier.
+     *
+     * This strategy will use CPU resource to avoid syscall which can introduce latency jitter. It is best
+     * used when threads can be bounded to specific CPU cores.
+     */
+    static final class BusySpinStrategy implements WaitStrategy
+    {
+        @Override
+        public long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence) throws InterruptedException {
+            long availableSequence;
+            if (0 == consumers.length)
+            {
+                while ((availableSequence = ringBuffer.getCursor()) < sequence)
+                {
+
+                }
+            }
+            else
+            {
+                while ((availableSequence = getMinimumSequence(consumers)) < sequence)
+                {
+
+                }
+            }
+            return availableSequence;
+        }
+
+        @Override
+        public long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence, long timeout, TimeUnit units) throws InterruptedException {
+            final long timeoutMS = units.convert(timeout, TimeUnit.MILLISECONDS);
+            final long currentTime = System.currentTimeMillis();
+            long availableSequence;
+
+            if (0 == consumers.length)
+            {
+                while ((availableSequence = ringBuffer.getCursor()) < sequence)
+                {
+                    if (timeoutMS < (System.currentTimeMillis() - currentTime))
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                while ((availableSequence = getMinimumSequence(consumers)) < sequence)
+                {
+                    if (timeoutMS < (System.currentTimeMillis()) - currentTime)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return availableSequence;
+        }
+
+        @Override
+        public void signalAll() {
+
+        }
+    }
+
 }
