@@ -177,4 +177,69 @@ public interface WaitStrategy {
         }
     }
 
+    /**
+     * Yielding strategy that uses a Thread.yield() for {@link Consumer}s waiting on a barrier
+     * This strategy is a good compromise between performance and CPU resources.
+     */
+    static final class YieldingStrategy implements WaitStrategy
+    {
+
+        @Override
+        public long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence) throws InterruptedException {
+            long availableSequence;
+
+            if (0 == consumers.length)
+            {
+                while ((availableSequence = ringBuffer.getCursor())< sequence)
+                {
+                    Thread.yield();
+                }
+            }else
+            {
+                while ((availableSequence = getMinimumSequence(consumers)) < sequence)
+                {
+                    Thread.yield();
+                }
+            }
+            return availableSequence;
+        }
+
+        @Override
+        public long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence, long timeout, TimeUnit units) throws InterruptedException {
+            final long timeoutMs = units.convert(timeout,TimeUnit.MILLISECONDS);
+            final long currentTime = System.currentTimeMillis();
+            long availableSequence;
+
+            if (0 == consumers.length)
+            {
+                while ((availableSequence = ringBuffer.getCursor()) < sequence)
+                {
+                    Thread.yield();
+                    if (timeoutMs < (System.currentTimeMillis() - currentTime))
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                while ((availableSequence = getMinimumSequence(consumers)) < sequence)
+                {
+                    Thread.yield();
+                    if (timeoutMs < (System.currentTimeMillis() - currentTime))
+                    {
+                        break;
+                    }
+                }
+            }
+            return availableSequence;
+        }
+
+        @Override
+        public void signalAll() {
+
+        }
+    }
+
+
 }
