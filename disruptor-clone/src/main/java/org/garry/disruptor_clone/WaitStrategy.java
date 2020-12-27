@@ -14,11 +14,11 @@ public interface WaitStrategy {
 
     /**
      * Wait for the given sequence to be available for consumption in a {@link RingBuffer}
-     * @param consumers future
-     * @param ringBuffer
-     * @param barrier
-     * @param sequence
-     * @return
+     * @param consumers further back the chain that must advance fast
+     * @param ringBuffer on which to wait
+     * @param barrier the consumer is waiting on
+     * @param sequence to be waited on
+     * @return the sequence that is available which may be greater than the requested sequence
      */
     long waitFor(Consumer[] consumers, RingBuffer ringBuffer,ConsumerBarrier barrier, long sequence) throws InterruptedException;
 
@@ -26,7 +26,53 @@ public interface WaitStrategy {
     long waitFor(Consumer[] consumers, RingBuffer ringBuffer, ConsumerBarrier barrier, long sequence, long timeout, TimeUnit units) throws InterruptedException;
 
 
+    /**
+     * Signal those waiting that the {@link RingBuffer} cursor has advanced
+     */
     void signalAll();
+
+    /**
+     * Strategy options which are available to those waiting on a {@link RingBuffer}
+     */
+    enum Option
+    {
+        /**
+         * This strategy uses a condition variable inside a lock to block the consumer which saves CPU resource as
+         * the expense of lock contention
+         */
+        BLOCKING
+                {
+                    @Override
+                    WaitStrategy newInstance() {
+                        return new BlockingStrategy();
+                    }
+                },
+
+        /**
+         * This strategy calls Thread.yield() in a loop as a waiting strategy which reduces contention
+         * at the expense of CPU resource
+         */
+        YIELDING
+                {
+                    @Override
+                    WaitStrategy newInstance() {
+                        return new YieldingStrategy();
+                    }
+                },
+
+        /**
+         * This strategy call spins in a loop as a waiting strategy which is lowest and most consistent latency
+         * but ties up a CPU
+         */
+        BUSY_SPIN
+                {
+                    @Override
+                    WaitStrategy newInstance() {
+                        return new BusySpinStrategy();
+                    }
+                };
+        abstract WaitStrategy newInstance();
+    }
 
 
     /**
@@ -240,6 +286,7 @@ public interface WaitStrategy {
 
         }
     }
+
 
 
 }
