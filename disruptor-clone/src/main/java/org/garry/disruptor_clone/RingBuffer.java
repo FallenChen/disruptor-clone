@@ -1,6 +1,7 @@
 package org.garry.disruptor_clone;
 
 import static org.garry.disruptor_clone.Util.ceilingNextPowerOfTwo;
+import static org.garry.disruptor_clone.Util.getMinimumSequence;
 
 /**
  * Ring based store of reusable entries containing the data representing an {@link Entry} being exchanged between producers and consumers
@@ -20,18 +21,22 @@ public final class RingBuffer<T extends Entry> {
     private final Object[] entries;
 
     private final ClaimStrategy claimStrategy;
+    private final WaitStrategy waitStrategy;
 
     public RingBuffer(final EntryFactory<T> entryFactory,final int size,
-                      ClaimStrategy.Option claimStrategyOption) {
+                      final ClaimStrategy.Option claimStrategyOption,
+                      final WaitStrategy.Option waitStrategyOption) {
         int sizeAsPowerOfTwp = ceilingNextPowerOfTwo(size);
         entries = new Object[sizeAsPowerOfTwp];
         claimStrategy = claimStrategyOption.newInstance();
+        waitStrategy = waitStrategyOption.newInstance();
         fill(entryFactory);
     }
 
     public RingBuffer(final EntryFactory<T> entryFactory, final int size) {
         this(entryFactory,size,
-                ClaimStrategy.Option.SINGLE_THREADED);
+                ClaimStrategy.Option.SINGLE_THREADED,
+                WaitStrategy.Option.BLOCKING);
     }
 
     private void fill(EntryFactory<T> entryFactory) {
@@ -79,6 +84,9 @@ public final class RingBuffer<T extends Entry> {
 
         @Override
         public T nextEntry() {
+            long sequence = claimStrategy.getAndIncrement();
+            ensureConsumersAreInRange(sequence);
+
             return null;
         }
 
@@ -88,12 +96,21 @@ public final class RingBuffer<T extends Entry> {
             claimStrategy.waitForCursor(sequence -1L, RingBuffer.this);
             cursor = sequence;
             // signal all
+            waitStrategy.signalAll();
 
         }
 
         @Override
         public long getCursor() {
             return cursor;
+        }
+
+        private void ensureConsumersAreInRange(final long sequence)
+        {
+            while ((sequence - getMinimumSequence(consumers)) >= entries.length)
+            {
+                Thread.yield();
+            }
         }
     }
 
