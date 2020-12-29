@@ -19,6 +19,7 @@ public final class RingBuffer<T extends Entry> {
 
 
     private final Object[] entries;
+    private final int ringModMask;
 
     private final ClaimStrategy claimStrategy;
     private final WaitStrategy waitStrategy;
@@ -26,8 +27,9 @@ public final class RingBuffer<T extends Entry> {
     public RingBuffer(final EntryFactory<T> entryFactory,final int size,
                       final ClaimStrategy.Option claimStrategyOption,
                       final WaitStrategy.Option waitStrategyOption) {
-        int sizeAsPowerOfTwp = ceilingNextPowerOfTwo(size);
-        entries = new Object[sizeAsPowerOfTwp];
+        int sizeAsPowerOfTwo = ceilingNextPowerOfTwo(size);
+        ringModMask = sizeAsPowerOfTwo - 1;
+        entries = new Object[sizeAsPowerOfTwo];
         claimStrategy = claimStrategyOption.newInstance();
         waitStrategy = waitStrategyOption.newInstance();
         fill(entryFactory);
@@ -87,7 +89,9 @@ public final class RingBuffer<T extends Entry> {
             long sequence = claimStrategy.getAndIncrement();
             ensureConsumersAreInRange(sequence);
 
-            return null;
+            T entry = (T) entries[(int) (sequence & ringModMask)];
+            entry.setSequence(sequence);
+            return entry;
         }
 
         @Override
