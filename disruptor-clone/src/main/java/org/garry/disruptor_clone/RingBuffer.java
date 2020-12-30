@@ -1,5 +1,7 @@
 package org.garry.disruptor_clone;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.garry.disruptor_clone.Util.ceilingNextPowerOfTwo;
 import static org.garry.disruptor_clone.Util.getMinimumSequence;
 
@@ -63,6 +65,39 @@ public final class RingBuffer<T extends Entry> {
         return cursor;
     }
 
+    /**
+     * ConsumerBarrier handed out for gating consumers of the RingBuffer and dependent {@link Consumer}s
+     * @param <T>
+     */
+    final class ConsumerTrackingConsumerBarrier<T extends Entry> implements ConsumerBarrier<T>
+    {
+        private final Consumer[] consumers;
+
+        public ConsumerTrackingConsumerBarrier(final Consumer... consumers) {
+            this.consumers = consumers;
+        }
+
+        @Override
+        public T getEntry(long sequence) {
+            return (T) entries[(int) (sequence & ringModMask)];
+        }
+
+        @Override
+        public long waitFor(long sequence) throws InterruptedException {
+            return waitStrategy.waitFor(consumers, RingBuffer.this, this, sequence);
+        }
+
+        @Override
+        public long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException {
+            return waitStrategy.waitFor(consumers,RingBuffer.this,this,sequence,timeout,units);
+        }
+
+        @Override
+        public long getCursor() {
+            return cursor;
+        }
+    }
+
 
 
     /**
@@ -95,7 +130,7 @@ public final class RingBuffer<T extends Entry> {
         }
 
         @Override
-        public void commit(T entry) {
+        public void commit(final T entry) {
             long sequence = entry.getSequence();
             claimStrategy.waitForCursor(sequence -1L, RingBuffer.this);
             cursor = sequence;

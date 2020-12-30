@@ -22,7 +22,7 @@ public interface ConsumerBarrier<T extends Entry> {
      * @param sequence to wait for
      * @return the sequence up to which is available
      */
-    long waitFor(long sequence);
+    long waitFor(long sequence) throws InterruptedException;
 
     /**
      * Wait for the given sequence to be available for consumption with a time out
@@ -31,7 +31,7 @@ public interface ConsumerBarrier<T extends Entry> {
      * @param units for the timeout value
      * @return
      */
-    long waitFor(long sequence, long timeout, TimeUnit units);
+    long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException;
 
     /**
      * Delegate a call to the {@link RingBuffer#getCursor()} ???todo
