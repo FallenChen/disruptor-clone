@@ -17,7 +17,9 @@ public final class RingBuffer<T extends Entry> {
      */
     public static final long INITIAL_CURSOR_VALUE = -1L;
 
+    private long p1,p2,p3,p4,p5,p6,p7; //cache line padding
     private volatile long cursor = INITIAL_CURSOR_VALUE;
+    private long p8,p9,p10,p11,p12,p13,p14; //cache line padding
 
 
     private final Object[] entries;
