@@ -39,6 +39,21 @@ public interface ConsumerBarrier<T extends Entry> {
      */
     long getCursor();
 
+    /**
+     * The current alert status for the barrier
+     * @return ture if in alert otherwise false
+     */
+    boolean isAlerted();
+
+    /**
+     * Alert the consumers of a status change and stay in this status until cleared
+     */
+    void alert();
+
+    /**
+     * Clear the current alert status.
+     */
+    void cleanAlert();
 
 
 }

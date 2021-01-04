@@ -17,9 +17,9 @@ public final class RingBuffer<T extends Entry> {
      */
     public static final long INITIAL_CURSOR_VALUE = -1L;
 
-    private long p1,p2,p3,p4,p5,p6,p7; //cache line padding
+    private long p1,p2,p3,p4,p5,p6,p7; //cache line padding why?
     private volatile long cursor = INITIAL_CURSOR_VALUE;
-    private long p8,p9,p10,p11,p12,p13,p14; //cache line padding
+    private long p8,p9,p10,p11,p12,p13,p14; //cache line padding why?
 
 
     private final Object[] entries;
@@ -28,14 +28,23 @@ public final class RingBuffer<T extends Entry> {
     private final ClaimStrategy claimStrategy;
     private final WaitStrategy waitStrategy;
 
+    /**
+     * Construct a RingBuffer with the full option set
+     * @param entryFactory to create {@link Entry}s for filling the RingBuffer
+     * @param size of the RingBuffer that will be rounded up to the next power of 2
+     * @param claimStrategyOption threading strategy for producers claiming {@link Entry}s in the ring
+     * @param waitStrategyOption waiting strategy employed by consumers waiting on {@link Entry}s becoming available
+     */
     public RingBuffer(final EntryFactory<T> entryFactory,final int size,
                       final ClaimStrategy.Option claimStrategyOption,
                       final WaitStrategy.Option waitStrategyOption) {
         int sizeAsPowerOfTwo = ceilingNextPowerOfTwo(size);
         ringModMask = sizeAsPowerOfTwo - 1;
         entries = new Object[sizeAsPowerOfTwo];
+
         claimStrategy = claimStrategyOption.newInstance();
         waitStrategy = waitStrategyOption.newInstance();
+
         fill(entryFactory);
     }
 
@@ -74,6 +83,7 @@ public final class RingBuffer<T extends Entry> {
     final class ConsumerTrackingConsumerBarrier<T extends Entry> implements ConsumerBarrier<T>
     {
         private final Consumer[] consumers;
+        private volatile boolean alerted = false;
 
         public ConsumerTrackingConsumerBarrier(final Consumer... consumers) {
             this.consumers = consumers;
@@ -97,6 +107,22 @@ public final class RingBuffer<T extends Entry> {
         @Override
         public long getCursor() {
             return cursor;
+        }
+
+        @Override
+        public boolean isAlerted() {
+            return alerted;
+        }
+
+        @Override
+        public void alert() {
+            alerted = true;
+            waitStrategy.signalAll();
+        }
+
+        @Override
+        public void cleanAlert() {
+            alerted = false;
         }
     }
 
