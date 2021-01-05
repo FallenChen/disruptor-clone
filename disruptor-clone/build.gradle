@@ -6,6 +6,7 @@ group 'org.garry'
 version '1.0'
 
 repositories {
+    mavenLocal()
     mavenCentral()
 }
 
