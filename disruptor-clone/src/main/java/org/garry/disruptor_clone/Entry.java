@@ -16,5 +16,10 @@ public interface Entry {
      * indicating when the producer is finished with assigning data for exchange
      * @param sequence to be assigned to this Entry
      */
-    void setSequence(long sequence);
+    void setSequence(long sequence, CommitCallback commitCallback);
+
+    /**
+     * Indicate that this entry has been updated and is now available to the consumers of a {@link RingBuffer}
+     */
+    void commit();
 }
