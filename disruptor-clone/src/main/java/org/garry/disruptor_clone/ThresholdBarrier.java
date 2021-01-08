@@ -4,11 +4,11 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Coordination barrier for tracking the cursor for producers and sequence of
- * dependent {@link Consumer}s for a {@link RingBuffer}
+ * dependent {@link EventConsumer}s for a {@link RingBuffer}
  *
  * @param <T> {@link Entry} implementation stored in the {@link RingBuffer}
  */
-public interface ConsumerBarrier<T extends Entry> {
+public interface ThresholdBarrier<T extends Entry> {
 
     /**
      * Get the {@link Entry} for a given sequence from the underlying {@link RingBuffer}

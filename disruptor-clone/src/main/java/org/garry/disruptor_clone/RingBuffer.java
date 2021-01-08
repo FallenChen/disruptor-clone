@@ -77,16 +77,16 @@ public final class RingBuffer<T extends Entry> {
     }
 
     /**
-     * ConsumerBarrier handed out for gating consumers of the RingBuffer and dependent {@link Consumer}s
+     * ConsumerBarrier handed out for gating consumers of the RingBuffer and dependent {@link EventConsumer}s
      * @param <T>
      */
-    final class ConsumerTrackingConsumerBarrier<T extends Entry> implements ConsumerBarrier<T>
+    final class ConsumerTrackingThresholdBarrier<T extends Entry> implements ThresholdBarrier<T>
     {
-        private final Consumer[] consumers;
+        private final EventConsumer[] eventConsumers;
         private volatile boolean alerted = false;
 
-        public ConsumerTrackingConsumerBarrier(final Consumer... consumers) {
-            this.consumers = consumers;
+        public ConsumerTrackingThresholdBarrier(final EventConsumer... eventConsumers) {
+            this.eventConsumers = eventConsumers;
         }
 
         @Override
@@ -96,12 +96,12 @@ public final class RingBuffer<T extends Entry> {
 
         @Override
         public long waitFor(long sequence) throws InterruptedException {
-            return waitStrategy.waitFor(consumers, RingBuffer.this, this, sequence);
+            return waitStrategy.waitFor(eventConsumers, RingBuffer.this, this, sequence);
         }
 
         @Override
         public long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException {
-            return waitStrategy.waitFor(consumers,RingBuffer.this,this,sequence,timeout,units);
+            return waitStrategy.waitFor(eventConsumers,RingBuffer.this,this,sequence,timeout,units);
         }
 
         @Override
@@ -129,22 +129,22 @@ public final class RingBuffer<T extends Entry> {
 
 
     /**
-     * {@link ProducerBarrier} that tracks multiple {@link Consumer}s when trying to claim
+     * {@link ProducerBarrier} that tracks multiple {@link EventConsumer}s when trying to claim
      * a {@link Entry} in the {@link RingBuffer}.
      */
 
     final class ConsumerTrackingProducerBarrier implements ProducerBarrier<T> {
 
-        private final Consumer[] consumers;
+        private final EventConsumer[] eventConsumers;
 
-        public ConsumerTrackingProducerBarrier(final Consumer... consumers)
+        public ConsumerTrackingProducerBarrier(final EventConsumer... eventConsumers)
         {
-            if (0 == consumers.length)
+            if (0 == eventConsumers.length)
             {
                 throw new IllegalArgumentException("There must be at least one Consumer to track for preventing ring wrap");
             }
 
-            this.consumers = consumers;
+            this.eventConsumers = eventConsumers;
         }
 
         @Override
@@ -174,7 +174,7 @@ public final class RingBuffer<T extends Entry> {
 
         private void ensureConsumersAreInRange(final long sequence)
         {
-            while ((sequence - getMinimumSequence(consumers)) >= entries.length)
+            while ((sequence - getMinimumSequence(eventConsumers)) >= entries.length)
             {
                 Thread.yield();
             }
