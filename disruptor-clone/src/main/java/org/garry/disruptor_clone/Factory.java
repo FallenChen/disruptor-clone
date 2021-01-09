@@ -5,7 +5,7 @@ package org.garry.disruptor_clone;
  *
  * @param <T> Entry implementation storing the data for sharing during exchange or parallel coordination of an event
  */
-public interface EntryFactory<T> {
+public interface Factory<T> {
 
     T create();
 }

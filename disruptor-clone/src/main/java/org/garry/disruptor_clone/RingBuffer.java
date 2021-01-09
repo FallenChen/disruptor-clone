@@ -30,12 +30,12 @@ public final class RingBuffer<T extends Entry> {
 
     /**
      * Construct a RingBuffer with the full option set
-     * @param entryFactory to create {@link Entry}s for filling the RingBuffer
+     * @param factory to create {@link Entry}s for filling the RingBuffer
      * @param size of the RingBuffer that will be rounded up to the next power of 2
      * @param claimStrategyOption threading strategy for producers claiming {@link Entry}s in the ring
      * @param waitStrategyOption waiting strategy employed by consumers waiting on {@link Entry}s becoming available
      */
-    public RingBuffer(final EntryFactory<T> entryFactory,final int size,
+    public RingBuffer(final Factory<T> factory, final int size,
                       final ClaimStrategy.Option claimStrategyOption,
                       final WaitStrategy.Option waitStrategyOption) {
         int sizeAsPowerOfTwo = ceilingNextPowerOfTwo(size);
@@ -45,18 +45,18 @@ public final class RingBuffer<T extends Entry> {
         claimStrategy = claimStrategyOption.newInstance();
         waitStrategy = waitStrategyOption.newInstance();
 
-        fill(entryFactory);
+        fill(factory);
     }
 
-    public RingBuffer(final EntryFactory<T> entryFactory, final int size) {
-        this(entryFactory,size,
+    public RingBuffer(final Factory<T> factory, final int size) {
+        this(factory,size,
                 ClaimStrategy.Option.SINGLE_THREADED,
                 WaitStrategy.Option.BLOCKING);
     }
 
-    private void fill(EntryFactory<T> entryFactory) {
+    private void fill(Factory<T> factory) {
         for (int i = 0; i < entries.length; i++) {
-            entries[i] = entryFactory.create();
+            entries[i] = factory.create();
         }
     }
 

@@ -17,4 +17,6 @@ public interface EventConsumer extends Runnable{
      * It will call {@link ThresholdBarrier#alert()} to notify the thread to check status.
      */
     void halt();
+
+    ThresholdBarrier getBarrier();
 }
