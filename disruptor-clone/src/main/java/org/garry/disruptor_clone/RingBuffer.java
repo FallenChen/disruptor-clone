@@ -1,5 +1,6 @@
 package org.garry.disruptor_clone;
 
+import javax.sound.midi.Sequence;
 import java.util.concurrent.TimeUnit;
 
 import static org.garry.disruptor_clone.Util.ceilingNextPowerOfTwo;
@@ -19,6 +20,24 @@ public final class RingBuffer<T extends Entry> {
 
     private final Object[] entries;
     private final int ringModMask;
+
+    private final SequenceClaimStrategy sequenceClaimStrategy;
+
+    public RingBuffer(final Factory<T> entryFactory, final int size,
+                      final SequenceClaimThreadingStrategy sequenceClaimThreadingStrategy)
+    {
+        int sizeAsPowerOfTwo = ceilingNextPowerOfTwo(size);
+        ringModMask = sizeAsPowerOfTwo - 1;
+        entries = new Object[sizeAsPowerOfTwo];
+        fill(entryFactory);
+        sequenceClaimStrategy = sequenceClaimThreadingStrategy.newInstance();
+    }
+
+    private void fill(Factory<T> entryFactory) {
+        for (int i = 0; i < entries.length; i++) {
+            entries[i] = entryFactory.create();
+        }
+    }
 
 
 }
