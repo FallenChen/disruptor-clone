@@ -21,6 +21,8 @@ public final class RingBuffer<T extends Entry> {
     private final Object[] entries;
     private final int ringModMask;
 
+    private final CommitCallback appendCallback = new AppendCommitCallback();
+
     private final SequenceClaimStrategy sequenceClaimStrategy;
 
     public RingBuffer(final Factory<T> entryFactory, final int size,
@@ -31,6 +33,23 @@ public final class RingBuffer<T extends Entry> {
         entries = new Object[sizeAsPowerOfTwo];
         fill(entryFactory);
         sequenceClaimStrategy = sequenceClaimThreadingStrategy.newInstance();
+    }
+
+    public RingBuffer(final Factory<T> entryFactory, final int size)
+    {
+        this(entryFactory,size,SequenceClaimThreadingStrategy.MULTI_THREADED);
+    }
+
+    /**
+     * Claim the next entry in sequence for use by a producer
+     * @return the next entry in the sequence
+     */
+    public T claimNext()
+    {
+        long sequence = sequenceClaimStrategy.getAndIncrement();
+        T next = (T)entries[(int) (sequence & ringModMask)];
+        next.setSequence(sequence,appendCallback);
+        return next;
     }
 
     private void fill(Factory<T> entryFactory) {
