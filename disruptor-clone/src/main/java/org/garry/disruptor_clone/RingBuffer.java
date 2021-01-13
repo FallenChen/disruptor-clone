@@ -25,6 +25,8 @@ public final class RingBuffer<T extends Entry> {
 
     private final SequenceClaimStrategy sequenceClaimStrategy;
 
+    private volatile long cursor = INITIAL_CURSOR_VALUE;
+
     public RingBuffer(final Factory<T> entryFactory, final int size,
                       final SequenceClaimThreadingStrategy sequenceClaimThreadingStrategy)
     {
@@ -58,6 +60,24 @@ public final class RingBuffer<T extends Entry> {
         }
     }
 
+    /**
+     * Callback to be used when claiming slots in sequence and cursor is catching up with claim
+     * for notifying the consumers of progress.This will busy spin on the commit until previous
+     * producers have committed lower sequence Entries.
+     */
+    final class AppendCommitCallback implements CommitCallback
+    {
+        @Override
+        public void commit(long sequence) {
+            long slotMinusOne = sequence - 1;
+            while (cursor != slotMinusOne)
+            {
+                // busy spin
+            }
+            cursor = sequence;
+            notifyConusmer();
+        }
+    }
 
 }
 
