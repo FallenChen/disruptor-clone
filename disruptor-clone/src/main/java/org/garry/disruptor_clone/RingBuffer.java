@@ -1,10 +1,11 @@
 package org.garry.disruptor_clone;
 
-import javax.sound.midi.Sequence;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.garry.disruptor_clone.Util.ceilingNextPowerOfTwo;
-import static org.garry.disruptor_clone.Util.getMinimumSequence;
 
 /**
  * Ring based store of reusable entries containing the data representing an {@link Entry} being exchanged between producers and consumers
@@ -24,6 +25,8 @@ public final class RingBuffer<T extends Entry> {
     private final CommitCallback appendCallback = new AppendCommitCallback();
 
     private final SequenceClaimStrategy sequenceClaimStrategy;
+    private final Lock lock = new ReentrantLock();
+    private final Condition consumerNotifyCondition = lock.newCondition();
 
     private volatile long cursor = INITIAL_CURSOR_VALUE;
 
@@ -75,7 +78,62 @@ public final class RingBuffer<T extends Entry> {
                 // busy spin
             }
             cursor = sequence;
-            notifyConusmer();
+            notifyConsumer();
+        }
+    }
+
+    private void notifyConsumer() {
+        lock.lock();
+        consumerNotifyCondition.signalAll();
+        lock.unlock();
+    }
+
+    /**
+     * Barrier handed out for gating consumers of the RingBuffer and dependent {@link EventConsumer}(s)
+     */
+    final class RingBufferThresholdBarrier implements ThresholdBarrier
+    {
+       private final EventConsumer[] eventConsumers;
+       private final boolean hasGatingEventProcessors;
+
+       private volatile boolean alerted = false;
+
+       public RingBufferThresholdBarrier(EventConsumer... eventConsumers)
+       {
+           this.eventConsumers = eventConsumers;
+           hasGatingEventProcessors = eventConsumers.length !=0;
+       }
+
+
+        @Override
+        public long waitFor(long sequence) throws InterruptedException {
+            return 0;
+        }
+
+        @Override
+        public long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException {
+            return 0;
+        }
+
+        @Override
+        public void checkForAlert() {
+        }
+
+
+        @Override
+        public void alert() {
+
+        }
+
+
+        @Override
+        public RingBuffer getRingBuffer() {
+            return null;
+        }
+
+        @Override
+        public long getProcessedEventSequence() {
+            return 0;
         }
     }
 

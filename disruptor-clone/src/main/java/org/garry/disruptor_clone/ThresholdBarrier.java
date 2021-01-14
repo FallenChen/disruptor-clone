@@ -11,11 +11,18 @@ import java.util.concurrent.TimeUnit;
 public interface ThresholdBarrier<T extends Entry> {
 
     /**
-     * Get the {@link Entry} for a given sequence from the underlying {@link RingBuffer}
-     * @param sequence of the {@link Entry} to get
-     * @return the {@link Entry} for the sequence
+     * Get the {@link RingBuffer} underlying this barrier
+     * @return
      */
-    T getEntry(long sequence);
+    RingBuffer<? extends  T> getRingBuffer();
+
+    /**
+     * Get the sequence number that the {@link RingBuffer} and dependent {@link EventConsumer}s have progressed to
+     *
+     * This is the RingBuffer cursor and minimum sequence number of the dependent EventProcessors
+     * @return the sequence that is now valid for consuming
+     */
+    long getProcessedEventSequence();
 
     /**
      * Wait for the given sequence to be available for consumption
@@ -34,26 +41,15 @@ public interface ThresholdBarrier<T extends Entry> {
     long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException;
 
     /**
-     * Delegate a call to the {@link RingBuffer#getCursor()} ???todo
-     * @return value of the cursor for entries that have been published
+     * Check for a status change in the Disruptor being alerted to be used by the consumers
      */
-    long getCursor();
+    void checkForAlert();
 
-    /**
-     * The current alert status for the barrier
-     * @return ture if in alert otherwise false
-     */
-    boolean isAlerted();
 
     /**
      * Alert the consumers of a status change and stay in this status until cleared
      */
     void alert();
-
-    /**
-     * Clear the current alert status.
-     */
-    void cleanAlert();
 
 
 }
