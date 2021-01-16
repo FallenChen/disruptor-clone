@@ -23,6 +23,12 @@ public final class RingBuffer<T extends Entry> {
     private final int ringModMask;
 
     private final CommitCallback appendCallback = new AppendCommitCallback();
+    private final CommitCallback setCallback = new SetCommitCallback();
+
+    /**
+     * Pre-allocated exception to avoid garbage generation
+     */
+    public static final AlertException ALERT_EXCEPTION = new AlertException();
 
     private final SequenceClaimStrategy sequenceClaimStrategy;
     private final Lock lock = new ReentrantLock();
@@ -55,6 +61,50 @@ public final class RingBuffer<T extends Entry> {
         T next = (T)entries[(int) (sequence & ringModMask)];
         next.setSequence(sequence,appendCallback);
         return next;
+    }
+
+    public T claimSequence(long sequence)
+    {
+        T entry = (T) entries[(int) (sequence & ringModMask)];
+        entry.setSequence(sequence,setCallback);
+        return entry;
+    }
+
+    /**
+     * Create a barrier that gates on the RingBuffer and a list of {@link EventConsumer}s
+     * @param eventConsumers this barrier will track
+     * @return the barrier gated as required
+     */
+    public ThresholdBarrier<T> createBarrier(EventConsumer... eventConsumers)
+    {
+        return new RingBufferThresholdBarrier(eventConsumers);
+    }
+
+    /**
+     * Get the entry for a given sequence from the RingBuffer
+     * @param sequence for the entry
+     * @return entry matching the sequence
+     */
+    public T get(long sequence)
+    {
+        return (T) entries[(int) (sequence&ringModMask)];
+    }
+
+    /**
+     * The capacity of the RingBuffer to hold entries
+     * @return the size of the RingBuffer
+     */
+    public int getCapacity()
+    {
+        return entries.length;
+    }
+
+    /**
+     * Get the current sequence that producers have committed to the RingBuffer
+     * @return the current committed sequence
+     */
+    public long getCursor() {
+        return cursor;
     }
 
     private void fill(Factory<T> entryFactory) {
@@ -106,8 +156,41 @@ public final class RingBuffer<T extends Entry> {
 
 
         @Override
-        public long waitFor(long sequence) throws InterruptedException {
+        public long waitFor(long sequence) throws InterruptedException, AlertException {
+           if (hasGatingEventProcessors)
+           {
+               long completedProcessedEventSequence = getProcessedEventSequence();
+               if (completedProcessedEventSequence >= sequence)
+               {
+                   return completedProcessedEventSequence;
+               }
+               waitForRingBuffer(sequence);
+
+               while ((completedProcessedEventSequence = getProcessedEventSequence()) < sequence)
+               {
+                   checkForAlert();
+               }
+               return completedProcessedEventSequence;
+           }
             return 0;
+        }
+
+        private long waitForRingBuffer(long sequence) throws InterruptedException, AlertException {
+            if (cursor < sequence)
+            {
+                lock.lock();
+                try {
+                    while (cursor < sequence)
+                    {
+                        checkForAlert();
+                        consumerNotifyCondition.await();
+                    }
+                }
+                finally {
+                    lock.unlock();
+                }
+            }
+            return cursor;
         }
 
         @Override
@@ -116,7 +199,12 @@ public final class RingBuffer<T extends Entry> {
         }
 
         @Override
-        public void checkForAlert() {
+        public void checkForAlert() throws AlertException {
+           if (alerted)
+           {
+               alerted = true;
+               throw ALERT_EXCEPTION;
+           }
         }
 
 
@@ -128,14 +216,33 @@ public final class RingBuffer<T extends Entry> {
 
         @Override
         public RingBuffer getRingBuffer() {
-            return null;
+           return RingBuffer.this;
         }
 
         @Override
         public long getProcessedEventSequence() {
-            return 0;
+           long minimum = cursor;
+           for(EventConsumer eventConsumer: eventConsumers)
+           {
+               long sequence = eventConsumer.getSequence();
+               minimum = minimum < sequence ? minimum : sequence;
+           }
+           return minimum;
         }
     }
 
+    /**
+     * Callback to be used when claiming slots and the cursor is explicitly set by the producer when
+     * you are sure only one producer exists
+     */
+    final class SetCommitCallback implements CommitCallback
+    {
+        @Override
+        public void commit(long sequence) {
+            sequenceClaimStrategy.setSequence(sequence + 1);
+            cursor = sequence;
+            notifyConsumer();
+        }
+    }
 }
 

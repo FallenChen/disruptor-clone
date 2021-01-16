@@ -29,7 +29,7 @@ public interface ThresholdBarrier<T extends Entry> {
      * @param sequence to wait for
      * @return the sequence up to which is available
      */
-    long waitFor(long sequence) throws InterruptedException;
+    long waitFor(long sequence) throws InterruptedException, AlertException;
 
     /**
      * Wait for the given sequence to be available for consumption with a time out
@@ -43,7 +43,7 @@ public interface ThresholdBarrier<T extends Entry> {
     /**
      * Check for a status change in the Disruptor being alerted to be used by the consumers
      */
-    void checkForAlert();
+    void checkForAlert() throws AlertException;
 
 
     /**
