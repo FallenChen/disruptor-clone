@@ -60,4 +60,10 @@ public class RingBufferTest {
 
         assertEquals(0L,ringBuffer.getCursor());
     }
+
+    @Test
+    public void shouldGetWIthTimeout() throws InterruptedException {
+        long sequence = barrier.waitFor(0, 5, TimeUnit.MILLISECONDS);
+        assertEquals(RingBuffer.INITIAL_CURSOR_VALUE,sequence);
+    }
 }
