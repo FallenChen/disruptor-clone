@@ -16,8 +16,10 @@ public final class ReadingCallable implements Callable<List<StubEntry>> {
     private final CyclicBarrier cb;
     private final ThresholdBarrier thresholdBarrier;
 
-    public ReadingCallable(final RingBuffer<StubEntry> ringBuffer,final long toWaitFor,
-                           final long initial,final CyclicBarrier cb) {
+    public ReadingCallable(final CyclicBarrier cb,
+                           final RingBuffer<StubEntry> ringBuffer,
+                           final long toWaitFor,
+                           final long initial) {
         this.ringBuffer = ringBuffer;
         this.toWaitFor = toWaitFor;
         this.initial = initial;

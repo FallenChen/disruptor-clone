@@ -1,13 +1,13 @@
 package org.garry.disruptor_clone;
 
 import org.garry.disruptor_clone.support.DaemonThreadFactory;
+import org.garry.disruptor_clone.support.ReadingCallable;
 import org.garry.disruptor_clone.support.StubEntry;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.concurrent.*;
 
 import static org.junit.Assert.assertEquals;
 
@@ -65,5 +65,24 @@ public class RingBufferTest {
     public void shouldGetWIthTimeout() throws InterruptedException {
         long sequence = barrier.waitFor(0, 5, TimeUnit.MILLISECONDS);
         assertEquals(RingBuffer.INITIAL_CURSOR_VALUE,sequence);
+    }
+
+    @Test
+    public void shouldClaimAndGetInSeparateThread() throws Exception{
+        Future<List<StubEntry>> messages = getMessages(0,0);
+        StubEntry expectedEntry = new StubEntry(2701);
+
+        StubEntry oldEntry = ringBuffer.claimNext();
+        oldEntry.copy(expectedEntry);
+        oldEntry.commit();
+
+        assertEquals(expectedEntry,messages.get().get(0));
+    }
+
+    private Future<List<StubEntry>> getMessages(final int initial, int toWaitFor) throws BrokenBarrierException, InterruptedException {
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final Future<List<StubEntry>> f = EXECUTOR.submit(new ReadingCallable(barrier, ringBuffer, initial, toWaitFor));
+        barrier.await();
+        return f;
     }
 }
