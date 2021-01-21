@@ -1,6 +1,6 @@
 package org.garry.disruptor_clone;
 
-final class SingleThreadedSequenceClaimStrategy implements SequenceClaimStrategy{
+public final class SingleThreadedSequenceClaimStrategy implements SequenceClaimStrategy{
 
     private long sequence;
 
