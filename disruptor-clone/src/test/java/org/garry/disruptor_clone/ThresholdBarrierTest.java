@@ -9,6 +9,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(JMock.class)
 public class ThresholdBarrierTest {
@@ -50,5 +51,72 @@ public class ThresholdBarrierTest {
         });
         ringBuffer.claimSequence(2384378L).commit();
         assertEquals(expectedMinimum,thresholdBarrier.getProcessedEventSequence());
+    }
+
+    @Test
+    public void shouldWaitForWorkCompleteWhereCompleteWorkThresholdIsBehind() throws AlertException, InterruptedException {
+        long exceptedNumberMessages = 10;
+        fillRingBuffer(exceptedNumberMessages);
+
+        final StubEventConsumer[] eventProcessors = new StubEventConsumer[3];
+        for(int i=0; i < eventProcessors.length;i++)
+        {
+            eventProcessors[i] = new StubEventConsumer();
+            eventProcessors[i].setSequence(exceptedNumberMessages-2);
+        }
+
+        ThresholdBarrier<StubEntry> barrier = ringBuffer.createBarrier(eventProcessors);
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                for (StubEventConsumer stubWorker : eventProcessors) {
+                    stubWorker.setSequence(stubWorker.getSequence() + 1);
+                }
+            }
+        };
+        new Thread(runnable).start();;
+        long exceptedWorkSequence = exceptedNumberMessages - 1;
+        long completedWorkSequence = barrier.waitFor(exceptedWorkSequence);
+        assertTrue(completedWorkSequence >= exceptedWorkSequence);
+
+    }
+
+    private void fillRingBuffer(long expectedNumberMessages)
+    {
+        for(long i = 0; i <expectedNumberMessages; i++)
+        {
+            StubEntry entry = ringBuffer.claimNext();
+            entry.setValue((int) i);
+            entry.commit();
+        }
+    }
+
+    private static class StubEventConsumer implements EventConsumer
+    {
+        private volatile long sequence;
+
+        public void setSequence(long sequence) {
+            this.sequence = sequence;
+        }
+
+        @Override
+        public long getSequence() {
+            return sequence;
+        }
+
+        @Override
+        public void halt() {
+
+        }
+
+        @Override
+        public ThresholdBarrier getBarrier() {
+            return null;
+        }
+
+        @Override
+        public void run() {
+
+        }
     }
 }
