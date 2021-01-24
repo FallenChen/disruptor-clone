@@ -3,10 +3,17 @@ package org.garry.disruptor_clone;
 import org.garry.disruptor_clone.support.StubEntry;
 import org.jmock.Expectations;
 import org.jmock.Mockery;
+import org.jmock.api.Action;
+import org.jmock.api.Invocation;
 import org.jmock.integration.junit4.JMock;
+import org.jmock.lib.action.CustomAction;
+import org.jmock.lib.action.DoAllAction;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -81,6 +88,46 @@ public class ThresholdBarrierTest {
 
     }
 
+    @Test
+    public void shouldInterruptDuringBusySpin() throws Exception {
+        final long expectedNumberMessages = 10;
+        fillRingBuffer(expectedNumberMessages);
+        final CountDownLatch latch = new CountDownLatch(9);
+
+
+        mockery.checking(new Expectations(){
+            {
+                allowing(eventProcessor1).getSequence();
+                will(new DoAllAction(countDown(latch),returnValue(8L)));
+
+                allowing(eventProcessor2).getSequence();
+                will(new DoAllAction(countDown(latch),returnValue(8L)));
+
+                allowing(eventProcessor3).getSequence();
+                will(new DoAllAction(countDown(latch),returnValue(8L)));
+            }
+        });
+
+        final boolean[] alerted = {false};
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    thresholdBarrier.waitFor(expectedNumberMessages - 1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (AlertException e) {
+                    alerted[0] = true;
+                }
+            }
+        });
+        t.start();
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
+       thresholdBarrier.alert();
+       t.join();
+       assertTrue("Thread was not interupted",alerted[0]);
+    }
+
     private void fillRingBuffer(long expectedNumberMessages)
     {
         for(long i = 0; i <expectedNumberMessages; i++)
@@ -118,5 +165,16 @@ public class ThresholdBarrierTest {
         public void run() {
 
         }
+    }
+
+    protected Action countDown(final CountDownLatch latch)
+    {
+        return new CustomAction("Count Down Latch") {
+            @Override
+            public Object invoke(Invocation invocation) throws Throwable {
+               latch.countDown();
+               return null;
+            }
+        };
     }
 }
