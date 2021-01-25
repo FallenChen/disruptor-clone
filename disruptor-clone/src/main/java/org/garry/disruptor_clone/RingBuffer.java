@@ -172,7 +172,8 @@ public final class RingBuffer<T extends Entry> {
                }
                return completedProcessedEventSequence;
            }
-            return 0;
+//            return 0; shouldInterruptDuringBusySpin -> oom
+            return waitForRingBuffer(sequence);
         }
 
         private long waitForRingBuffer(long sequence) throws InterruptedException, AlertException {
@@ -193,9 +194,46 @@ public final class RingBuffer<T extends Entry> {
             return cursor;
         }
 
+        private long waitForRingBuffer(long sequence, long timeout,TimeUnit units) throws AlertException, InterruptedException {
+            if(cursor < sequence)
+            {
+                lock.lock();
+                try
+                {
+                    while (cursor < sequence)
+                    {
+                        checkForAlert();
+                        if(!consumerNotifyCondition.await(timeout,units))
+                        {
+                            break;
+                        }
+                    }
+                }
+                finally {
+                    lock.unlock();
+                }
+            }
+            return cursor;
+        }
+
         @Override
-        public long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException {
-            return 0;
+        public long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException, AlertException {
+           if(hasGatingEventProcessors)
+           {
+               long completedProcessedEventSequence = getProcessedEventSequence();
+               if(completedProcessedEventSequence >= sequence)
+               {
+                   return completedProcessedEventSequence;
+               }
+               waitForRingBuffer(sequence,timeout,units);
+
+               while((completedProcessedEventSequence = getProcessedEventSequence()) < sequence)
+               {
+                   checkForAlert();
+               }
+               return completedProcessedEventSequence;
+           }
+            return waitForRingBuffer(sequence,timeout,units);
         }
 
         @Override

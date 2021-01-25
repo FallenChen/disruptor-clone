@@ -123,9 +123,9 @@ public class ThresholdBarrierTest {
         });
         t.start();
         assertTrue(latch.await(1, TimeUnit.SECONDS));
-       thresholdBarrier.alert();
-       t.join();
-       assertTrue("Thread was not interupted",alerted[0]);
+        thresholdBarrier.alert();
+        t.join();
+        assertTrue("Thread was not interupted",alerted[0]);
     }
 
     private void fillRingBuffer(long expectedNumberMessages)

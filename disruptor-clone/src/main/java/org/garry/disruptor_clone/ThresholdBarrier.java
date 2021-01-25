@@ -38,7 +38,7 @@ public interface ThresholdBarrier<T extends Entry> {
      * @param units for the timeout value
      * @return
      */
-    long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException;
+    long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException, AlertException;
 
     /**
      * Check for a status change in the Disruptor being alerted to be used by the consumers
