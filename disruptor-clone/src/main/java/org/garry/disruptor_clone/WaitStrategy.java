@@ -5,8 +5,9 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static com.lmax.disruptor.AlertException.ALERT_EXCEPTION;
-import static com.lmax.disruptor.Util.getMinimumSequence;
+import static org.garry.disruptor_clone.AlertException.ALERT_EXCEPTION;
+import static org.garry.disruptor_clone.Util.getMinimumSequence;
+
 
 /**
  * Strategy employed for making {@link Consumer}s wait on a {@link RingBuffer}.

@@ -2,8 +2,9 @@ package org.garry.disruptor_clone;
 
 import java.util.concurrent.TimeUnit;
 
-import static com.lmax.disruptor.Util.ceilingNextPowerOfTwo;
-import static com.lmax.disruptor.Util.getMinimumSequence;
+import static org.garry.disruptor_clone.Util.ceilingNextPowerOfTwo;
+import static org.garry.disruptor_clone.Util.getMinimumSequence;
+
 
 /**
  * Ring based store of reusable entries containing the data representing an {@link Entry} being exchanged between producers and consumers.
