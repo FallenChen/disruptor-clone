@@ -3,25 +3,25 @@ package org.garry.disruptor_clone;
 /**
  * Base implementation provided for ease of use
  */
-public abstract class AbstractEntry implements Entry{
-
+public abstract class AbstractEntry implements Entry
+{
     private long sequence;
-    private CommitCallback commitCallback;
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void commit() {
-        commitCallback.commit(sequence);
-    }
-
-
-    @Override
-    public long getSequence() {
+    public long getSequence()
+    {
         return sequence;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void setSequence(long sequence, CommitCallback commitCallback) {
+    public void setSequence(final long sequence)
+    {
         this.sequence = sequence;
-        this.commitCallback = commitCallback;
     }
 }

@@ -1,98 +1,104 @@
 package org.garry.disruptor_clone;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
-import static org.garry.disruptor_clone.Util.ceilingNextPowerOfTwo;
+import static com.lmax.disruptor.Util.ceilingNextPowerOfTwo;
+import static com.lmax.disruptor.Util.getMinimumSequence;
 
 /**
- * Ring based store of reusable entries containing the data representing an {@link Entry} being exchanged between producers and consumers
+ * Ring based store of reusable entries containing the data representing an {@link Entry} being exchanged between producers and consumers.
  *
- * @param <T> Entry implementation storing the data for sharing during exchange or parallel coordination of an event
+ * @param <T> Entry implementation storing the data for sharing during exchange or parallel coordination of an event.
  */
-public final class RingBuffer<T extends Entry> {
+public final class RingBuffer<T extends Entry>
+{
+    /** Set to -1 as sequence starting point */
+    public static final long INITIAL_CURSOR_VALUE = -1L;
 
-    /**
-     * Set to -1 as sequence starting point
-     */
-    public static final long INITIAL_CURSOR_VALUE = -1;
+    public long p1, p2, p3, p4, p5, p6, p7; // cache line padding
+    private volatile long cursor = INITIAL_CURSOR_VALUE;
+    public long p8, p9, p10, p11, p12, p13, p14; // cache line padding
 
     private final Object[] entries;
     private final int ringModMask;
 
-    private final CommitCallback appendCallback = new AppendCommitCallback();
-    private final CommitCallback setCallback = new SetCommitCallback();
+    private final ClaimStrategy claimStrategy;
+    private final WaitStrategy waitStrategy;
 
     /**
-     * Pre-allocated exception to avoid garbage generation
+     * Construct a RingBuffer with the full option set.
+     *
+     * @param entryFactory to create {@link Entry}s for filling the RingBuffer
+     * @param size of the RingBuffer that will be rounded up to the next power of 2
+     * @param claimStrategyOption threading strategy for producers claiming {@link Entry}s in the ring.
+     * @param waitStrategyOption waiting strategy employed by consumers waiting on {@link Entry}s becoming available.
      */
-    public static final AlertException ALERT_EXCEPTION = new AlertException();
-
-    private final SequenceClaimStrategy sequenceClaimStrategy;
-    private final Lock lock = new ReentrantLock();
-    private final Condition consumerNotifyCondition = lock.newCondition();
-
-    private volatile long cursor = INITIAL_CURSOR_VALUE;
-
-    public RingBuffer(final Factory<T> entryFactory, final int size,
-                      final SequenceClaimThreadingStrategy sequenceClaimThreadingStrategy)
+    public RingBuffer(final EntryFactory<T> entryFactory, final int size,
+                      final ClaimStrategy.Option claimStrategyOption,
+                      final WaitStrategy.Option waitStrategyOption)
     {
         int sizeAsPowerOfTwo = ceilingNextPowerOfTwo(size);
         ringModMask = sizeAsPowerOfTwo - 1;
         entries = new Object[sizeAsPowerOfTwo];
+
+        claimStrategy = claimStrategyOption.newInstance();
+        waitStrategy = waitStrategyOption.newInstance();
+
         fill(entryFactory);
-        sequenceClaimStrategy = sequenceClaimThreadingStrategy.newInstance();
-    }
-
-    public RingBuffer(final Factory<T> entryFactory, final int size)
-    {
-        this(entryFactory,size,SequenceClaimThreadingStrategy.MULTI_THREADED);
     }
 
     /**
-     * Claim the next entry in sequence for use by a producer
-     * @return the next entry in the sequence
+     * Construct a RingBuffer with default strategies of:
+     * {@link ClaimStrategy.Option#MULTI_THREADED} and {@link WaitStrategy.Option#BLOCKING}
+     *
+     * @param entryFactory to create {@link Entry}s for filling the RingBuffer
+     * @param size of the RingBuffer that will be rounded up to the next power of 2
      */
-    public T claimNext()
+    public RingBuffer(final EntryFactory<T> entryFactory, final int size)
     {
-        long sequence = sequenceClaimStrategy.getAndIncrement();
-        T next = (T)entries[(int) (sequence & ringModMask)];
-        next.setSequence(sequence,appendCallback);
-        return next;
-    }
-
-    public T claimSequence(long sequence)
-    {
-        T entry = (T) entries[(int) (sequence & ringModMask)];
-        entry.setSequence(sequence,setCallback);
-        return entry;
+        this(entryFactory, size,
+             ClaimStrategy.Option.MULTI_THREADED,
+             WaitStrategy.Option.BLOCKING);
     }
 
     /**
-     * Create a barrier that gates on the RingBuffer and a list of {@link EventConsumer}s
-     * @param eventConsumers this barrier will track
+     * Create a {@link ConsumerBarrier} that gates on the RingBuffer and a list of {@link Consumer}s
+     *
+     * @param consumersToTrack this barrier will track
      * @return the barrier gated as required
      */
-    public ThresholdBarrier<T> createBarrier(EventConsumer... eventConsumers)
+    public ConsumerBarrier<T> createConsumerBarrier(final Consumer... consumersToTrack)
     {
-        return new RingBufferThresholdBarrier(eventConsumers);
+        return new ConsumerTrackingConsumerBarrier<T>(consumersToTrack);
     }
 
     /**
-     * Get the entry for a given sequence from the RingBuffer
-     * @param sequence for the entry
-     * @return entry matching the sequence
+     * Create a {@link ProducerBarrier} on this RingBuffer that tracks dependent {@link Consumer}s.
+     *
+     * @param consumersToTrack to be tracked to prevent wrapping.
+     * @return a {@link ProducerBarrier} with the above configuration.
      */
-    public T get(long sequence)
+    public ProducerBarrier<T> createProducerBarrier(final Consumer... consumersToTrack)
     {
-        return (T) entries[(int) (sequence&ringModMask)];
+        return new ConsumerTrackingProducerBarrier(consumersToTrack);
     }
 
     /**
-     * The capacity of the RingBuffer to hold entries
-     * @return the size of the RingBuffer
+     * Create a {@link ForceFillProducerBarrier} on this RingBuffer that tracks dependent {@link Consumer}s.
+     * This barrier is to be used for filling a RingBuffer when no other producers exist.
+     *
+     * @param consumersToTrack to be tracked to prevent wrapping.
+     * @return a {@link ForceFillProducerBarrier} with the above configuration.
+     */
+    public ForceFillProducerBarrier<T> createForceFillProducerBarrier(final Consumer... consumersToTrack)
+    {
+        return new ForceFillConsumerTrackingProducerBarrier(consumersToTrack);
+    }
+
+    /**
+     * The capacity of the RingBuffer to hold entries.
+     *
+     * @return the size of the RingBuffer.
      */
     public int getCapacity()
     {
@@ -100,187 +106,203 @@ public final class RingBuffer<T extends Entry> {
     }
 
     /**
-     * Get the current sequence that producers have committed to the RingBuffer
-     * @return the current committed sequence
+     * Get the current sequence that producers have committed to the RingBuffer.
+     *
+     * @return the current committed sequence.
      */
-    public long getCursor() {
+    public long getCursor()
+    {
         return cursor;
     }
 
-    private void fill(Factory<T> entryFactory) {
-        for (int i = 0; i < entries.length; i++) {
-            entries[i] = entryFactory.create();
+    /**
+     * Get the {@link Entry} for a given sequence in the RingBuffer.
+     *
+     * @param sequence for the {@link Entry}
+     * @return {@link Entry} for the sequence
+     */
+    @SuppressWarnings("unchecked")
+    public T getEntry(final long sequence)
+    {
+        return (T)entries[(int)sequence & ringModMask];
+    }
+
+    private void fill(final EntryFactory<T> entryEntryFactory)
+    {
+        for (int i = 0; i < entries.length; i++)
+        {
+            entries[i] = entryEntryFactory.create();
         }
     }
 
     /**
-     * Callback to be used when claiming slots in sequence and cursor is catching up with claim
-     * for notifying the consumers of progress.This will busy spin on the commit until previous
-     * producers have committed lower sequence Entries.
+     * ConsumerBarrier handed out for gating consumers of the RingBuffer and dependent {@link Consumer}(s)
      */
-    final class AppendCommitCallback implements CommitCallback
+    final class ConsumerTrackingConsumerBarrier<T extends Entry> implements ConsumerBarrier<T>
     {
-        @Override
-        public void commit(long sequence) {
-            long slotMinusOne = sequence - 1;
-            while (cursor != slotMinusOne)
-            {
-                // busy spin
-            }
-            cursor = sequence;
-            notifyConsumer();
+        public long p1, p2, p3, p4, p5, p6, p7; // cache line padding
+        private final Consumer[] consumers;
+        private volatile boolean alerted = false;
+        public long p8, p9, p10, p11, p12, p13, p14; // cache line padding
+
+        public ConsumerTrackingConsumerBarrier(final Consumer... consumers)
+        {
+            this.consumers = consumers;
         }
-    }
-
-    private void notifyConsumer() {
-        lock.lock();
-        consumerNotifyCondition.signalAll();
-        lock.unlock();
-    }
-
-    /**
-     * Barrier handed out for gating consumers of the RingBuffer and dependent {@link EventConsumer}(s)
-     */
-    final class RingBufferThresholdBarrier implements ThresholdBarrier
-    {
-       private final EventConsumer[] eventConsumers;
-       private final boolean hasGatingEventProcessors;
-
-       private volatile boolean alerted = false;
-
-       public RingBufferThresholdBarrier(EventConsumer... eventConsumers)
-       {
-           this.eventConsumers = eventConsumers;
-           hasGatingEventProcessors = eventConsumers.length !=0;
-       }
-
 
         @Override
-        public long waitFor(long sequence) throws InterruptedException, AlertException {
-           if (hasGatingEventProcessors)
-           {
-               long completedProcessedEventSequence = getProcessedEventSequence();
-               if (completedProcessedEventSequence >= sequence)
-               {
-                   return completedProcessedEventSequence;
-               }
-               waitForRingBuffer(sequence);
-
-               while ((completedProcessedEventSequence = getProcessedEventSequence()) < sequence)
-               {
-                   checkForAlert();
-               }
-               return completedProcessedEventSequence;
-           }
-            return waitForRingBuffer(sequence);
+        @SuppressWarnings("unchecked")
+        public T getEntry(final long sequence)
+        {
+            return (T)entries[(int)sequence & ringModMask];
         }
 
-        private long waitForRingBuffer(long sequence) throws InterruptedException, AlertException {
-            if (cursor < sequence)
-            {
-                lock.lock();
-                try {
-                    while (cursor < sequence)
-                    {
-                        checkForAlert();
-                        consumerNotifyCondition.await();
-                    }
-                }
-                finally {
-                    lock.unlock();
-                }
-            }
-            return cursor;
+        @Override
+        public long waitFor(final long sequence)
+            throws AlertException, InterruptedException
+        {
+            return waitStrategy.waitFor(consumers, RingBuffer.this, this, sequence);
         }
 
-        private long waitForRingBuffer(long sequence, long timeout,TimeUnit units) throws AlertException, InterruptedException {
-            if(cursor < sequence)
-            {
-                lock.lock();
-                try
-                {
-                    while (cursor < sequence)
-                    {
-                        checkForAlert();
-                        if(!consumerNotifyCondition.await(timeout,units))
-                        {
-                            break;
-                        }
-                    }
-                }
-                finally {
-                    lock.unlock();
-                }
-            }
+        @Override
+        public long waitFor(final long sequence, final long timeout, final TimeUnit units)
+            throws AlertException, InterruptedException
+        {
+            return waitStrategy.waitFor(consumers, RingBuffer.this, this, sequence, timeout, units);
+        }
+
+        @Override
+        public long getCursor()
+        {
             return cursor;
         }
 
         @Override
-        public long waitFor(long sequence, long timeout, TimeUnit units) throws InterruptedException, AlertException {
-           if(hasGatingEventProcessors)
-           {
-               long completedProcessedEventSequence = getProcessedEventSequence();
-               if(completedProcessedEventSequence >= sequence)
-               {
-                   return completedProcessedEventSequence;
-               }
-               waitForRingBuffer(sequence,timeout,units);
-
-               while((completedProcessedEventSequence = getProcessedEventSequence()) < sequence)
-               {
-                   checkForAlert();
-               }
-               return completedProcessedEventSequence;
-           }
-            return waitForRingBuffer(sequence,timeout,units);
+        public boolean isAlerted()
+        {
+            return alerted;
         }
 
         @Override
-        public void checkForAlert() throws AlertException {
-           if (alerted)
-           {
-               alerted = true;
-               throw ALERT_EXCEPTION;
-           }
-        }
-
-
-        @Override
-        public void alert() {
-           alerted = true;
-           notifyConsumer();
-        }
-
-
-        @Override
-        public RingBuffer getRingBuffer() {
-           return RingBuffer.this;
+        public void alert()
+        {
+            alerted = true;
+            waitStrategy.signalAll();
         }
 
         @Override
-        public long getProcessedEventSequence() {
-           long minimum = cursor;
-           for(EventConsumer eventConsumer: eventConsumers)
-           {
-               long sequence = eventConsumer.getSequence();
-               minimum = minimum < sequence ? minimum : sequence;
-           }
-           return minimum;
+        public void clearAlert()
+        {
+            alerted = false;
         }
     }
 
     /**
-     * Callback to be used when claiming slots and the cursor is explicitly set by the producer when
-     * you are sure only one producer exists
+     * {@link ProducerBarrier} that tracks multiple {@link Consumer}s when trying to claim
+     * a {@link Entry} in the {@link RingBuffer}.
      */
-    final class SetCommitCallback implements CommitCallback
+    final class ConsumerTrackingProducerBarrier implements ProducerBarrier<T>
     {
+        private final Consumer[] consumers;
+
+        public ConsumerTrackingProducerBarrier(final Consumer... consumers)
+        {
+            if (0 == consumers.length)
+            {
+                throw new IllegalArgumentException("There must be at least one Consumer to track for preventing ring wrap");
+            }
+
+            this.consumers = consumers;
+        }
+
         @Override
-        public void commit(long sequence) {
-            sequenceClaimStrategy.setSequence(sequence + 1);
+        @SuppressWarnings("unchecked")
+        public T nextEntry()
+        {
+            long sequence = claimStrategy.getAndIncrement();
+            ensureConsumersAreInRange(sequence);
+
+            T entry = (T)entries[(int)sequence & ringModMask];
+            entry.setSequence(sequence);
+
+            return entry;
+        }
+
+        @Override
+        public void commit(final T entry)
+        {
+            long sequence = entry.getSequence();
+            claimStrategy.waitForCursor(sequence - 1L, RingBuffer.this);
             cursor = sequence;
-            notifyConsumer();
+            waitStrategy.signalAll();
+        }
+
+        @Override
+        public long getCursor()
+        {
+            return cursor;
+        }
+
+        private void ensureConsumersAreInRange(final long sequence)
+        {
+            while ((sequence - getMinimumSequence(consumers)) >= entries.length)
+            {
+                Thread.yield();
+            }
+        }
+    }
+
+    /**
+     * {@link ForceFillProducerBarrier} that tracks multiple {@link Consumer}s when trying to claim
+     * a {@link Entry} in the {@link RingBuffer}.
+     */
+    final class ForceFillConsumerTrackingProducerBarrier implements ForceFillProducerBarrier<T>
+    {
+        private final Consumer[] consumers;
+
+        public ForceFillConsumerTrackingProducerBarrier(final Consumer... consumers)
+        {
+            if (0 == consumers.length)
+            {
+                throw new IllegalArgumentException("There must be at least one Consumer to track for preventing ring wrap");
+            }
+
+            this.consumers = consumers;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public T claimEntry(final long sequence)
+        {
+            ensureConsumersAreInRange(sequence);
+
+            T entry = (T)entries[(int)sequence & ringModMask];
+            entry.setSequence(sequence);
+
+            return entry;
+        }
+
+        @Override
+        public void commit(final T entry)
+        {
+            long sequence = entry.getSequence();
+            claimStrategy.setSequence(sequence + 1L);
+            cursor = sequence;
+            waitStrategy.signalAll();
+        }
+
+        @Override
+        public long getCursor()
+        {
+            return cursor;
+        }
+
+        private void ensureConsumersAreInRange(final long sequence)
+        {
+            while ((sequence - getMinimumSequence(consumers)) >= entries.length)
+            {
+                Thread.yield();
+            }
         }
     }
 }
-

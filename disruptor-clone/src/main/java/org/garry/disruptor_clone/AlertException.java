@@ -1,18 +1,31 @@
 package org.garry.disruptor_clone;
 
 /**
- * Used to alert consumers waiting at a {@link ThresholdBarrier} of status changes
- *
- * It does not fill in a stack trace for performance reasons
+ * Used to alert consumers waiting at a {@link ConsumerBarrier} of status changes.
+ * <P>
+ * It does not fill in a stack trace for performance reasons.
  */
-public class AlertException extends Exception{
+@SuppressWarnings("serial")
+public class AlertException extends Exception
+{
+    /** Pre-allocated exception to avoid garbage generation */
+    public static final AlertException ALERT_EXCEPTION = new AlertException();
 
     /**
-     * Overridden so the stack trace is not filled in
-     * @return
+     * Private constructor so only a single instance exists.
+     */
+    private AlertException()
+    {
+    }
+
+    /**
+     * Overridden so the stack trace is not filled in for this exception for performance reasons.
+     *
+     * @return this instance.
      */
     @Override
-    public synchronized Throwable fillInStackTrace() {
+    public Throwable fillInStackTrace()
+    {
         return this;
     }
 }
