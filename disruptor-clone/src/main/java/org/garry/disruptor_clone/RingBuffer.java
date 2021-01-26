@@ -172,7 +172,6 @@ public final class RingBuffer<T extends Entry> {
                }
                return completedProcessedEventSequence;
            }
-//            return 0; shouldInterruptDuringBusySpin -> oom
             return waitForRingBuffer(sequence);
         }
 
@@ -248,7 +247,8 @@ public final class RingBuffer<T extends Entry> {
 
         @Override
         public void alert() {
-
+           alerted = true;
+           notifyConsumer();
         }
 
 

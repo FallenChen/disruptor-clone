@@ -29,6 +29,7 @@ public class RingBufferTest {
         assertEquals(RingBuffer.INITIAL_CURSOR_VALUE, ringBuffer.getCursor());
 
         StubEntry expectedEntry = new StubEntry(2701);
+
         StubEntry oldEntry = ringBuffer.claimNext();
         oldEntry.copy(expectedEntry);
         oldEntry.commit();
@@ -62,7 +63,8 @@ public class RingBufferTest {
     }
 
     @Test
-    public void shouldGetWIthTimeout() throws InterruptedException, AlertException {
+    public void shouldGetWithTimeout() throws InterruptedException, AlertException {
+
         long sequence = barrier.waitFor(0, 5, TimeUnit.MILLISECONDS);
         assertEquals(RingBuffer.INITIAL_CURSOR_VALUE,sequence);
     }
@@ -70,6 +72,7 @@ public class RingBufferTest {
     @Test
     public void shouldClaimAndGetInSeparateThread() throws Exception{
         Future<List<StubEntry>> messages = getMessages(0,0);
+
         StubEntry expectedEntry = new StubEntry(2701);
 
         StubEntry oldEntry = ringBuffer.claimNext();
@@ -79,7 +82,66 @@ public class RingBufferTest {
         assertEquals(expectedEntry,messages.get().get(0));
     }
 
-    private Future<List<StubEntry>> getMessages(final int initial, int toWaitFor) throws BrokenBarrierException, InterruptedException {
+    @Test
+    public void shouldClaimAndGetMultipleMessages() throws AlertException, InterruptedException {
+        int numMessages = ringBuffer.getCapacity();
+        for(int i=0; i < numMessages; i++)
+        {
+            StubEntry entry = ringBuffer.claimNext();
+            entry.setValue(i);
+            entry.commit();
+        }
+
+        int expectedSequence = numMessages - 1;
+        long available = barrier.waitFor(expectedSequence);
+        assertEquals(expectedSequence,available);
+
+        for(int i=0; i< numMessages; i++)
+        {
+            assertEquals(i,ringBuffer.get(i).getValue());
+        }
+    }
+
+    @Test
+    public void shouldWrap() throws AlertException, InterruptedException {
+        int numMessages = ringBuffer.getCapacity();
+        int offset = 1000;
+        for(int i = 0; i < numMessages + offset; i++)
+        {
+            StubEntry entry = ringBuffer.claimNext();
+            entry.setValue(i);
+            entry.commit();
+        }
+
+        int expectedSequence = numMessages + offset - 1;
+        long available = barrier.waitFor(expectedSequence);
+        assertEquals(expectedSequence, available);
+
+        for(int i=offset; i<numMessages + offset; i++)
+        {
+            assertEquals(i, ringBuffer.get(i).getValue());
+        }
+    }
+
+    @Test
+    public void shouldSetAtSpecificSequence() throws AlertException, InterruptedException {
+        long expectedSequence = 5;
+        StubEntry expectedEntry = ringBuffer.claimSequence(expectedSequence);
+        expectedEntry.setValue((int) expectedSequence);
+        expectedEntry.commit();
+
+        long sequence = barrier.waitFor(expectedSequence);
+        assertEquals(expectedSequence, sequence);
+
+        StubEntry entry = ringBuffer.get(sequence);
+        assertEquals(expectedEntry, entry);
+
+        assertEquals(expectedSequence, ringBuffer.getCursor());
+    }
+
+
+    private Future<List<StubEntry>> getMessages(final int initial, int toWaitFor)
+            throws BrokenBarrierException, InterruptedException {
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Future<List<StubEntry>> f = EXECUTOR.submit(new ReadingCallable(barrier, ringBuffer, initial, toWaitFor));
         barrier.await();
