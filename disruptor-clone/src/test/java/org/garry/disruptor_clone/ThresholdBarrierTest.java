@@ -61,6 +61,30 @@ public class ThresholdBarrierTest {
     }
 
     @Test
+    public void shouldWaitForWorkCompleteWhereCompleteWorkThresholdIsAhead() throws AlertException, InterruptedException {
+        final long expectedNumberMessages =  10;
+        final long expectedWorkSequence = 9;
+        fillRingBuffer(expectedNumberMessages);
+
+        mockery.checking(new Expectations()
+        {
+            {
+                one(eventProcessor1).getSequence();
+                will(returnValue(expectedWorkSequence));
+
+                one(eventProcessor2).getSequence();
+                will(returnValue(expectedWorkSequence));
+
+                one(eventProcessor3).getSequence();
+                will(returnValue(expectedWorkSequence));
+            }
+        });
+
+        long completedWorkSequence = thresholdBarrier.waitFor(expectedWorkSequence);
+        assertTrue(completedWorkSequence >= expectedWorkSequence);
+    }
+
+    @Test
     public void shouldWaitForWorkCompleteWhereCompleteWorkThresholdIsBehind() throws AlertException, InterruptedException {
         long exceptedNumberMessages = 10;
         fillRingBuffer(exceptedNumberMessages);
