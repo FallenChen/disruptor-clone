@@ -113,6 +113,37 @@ public class ThresholdBarrierTest {
     }
 
     @Test
+    public void shouldWaitForWorkCompleteWhereAllWorkersAreBlockedOnRingBuffer() throws AlertException, InterruptedException {
+        long expectedNumberMessages = 10;
+        fillRingBuffer(expectedNumberMessages);
+
+        final StubEventConsumer[] workers = new StubEventConsumer[3];
+        for(int i=0, size = workers.length; i< size; i++) {
+            workers[i] = new StubEventConsumer();
+            workers[i].setSequence(expectedNumberMessages -1 );
+        }
+
+        final ThresholdBarrier<StubEntry> barrier = ringBuffer.createBarrier(workers);
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                StubEntry entry = ringBuffer.claimNext();
+                entry.setValue((int) entry.getSequence());
+                entry.commit();
+                for (StubEventConsumer stubWorker : workers) {
+                    stubWorker.setSequence(entry.getSequence());
+                }
+            }
+        };
+
+        new Thread(runnable).start();
+
+        long expectedWorkSequence = expectedNumberMessages;
+        long completedWorkSequence = barrier.waitFor(expectedWorkSequence);
+        assertTrue(completedWorkSequence >= expectedWorkSequence);
+    }
+
+    @Test
     public void shouldInterruptDuringBusySpin() throws Exception {
         final long expectedNumberMessages = 10;
         fillRingBuffer(expectedNumberMessages);
